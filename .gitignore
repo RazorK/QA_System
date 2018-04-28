@@ -1,3 +1,5 @@
+prep.py
+*.p
 *.pdf
 .*.swp
 *.zip
