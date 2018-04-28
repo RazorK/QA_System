@@ -1,0 +1,2 @@
+Name: Webscope_L6-1
+Website: https://webscope.sandbox.yahoo.com/catalog.php?datatype=l

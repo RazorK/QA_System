@@ -1,0 +1,11 @@
+*.pdf
+.*.swp
+*.zip
+*.tar
+*.tgz
+cscope.*
+*.o
+*.pyc
+__pycache__/*
+test/*
+test*
