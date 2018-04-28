@@ -87,9 +87,9 @@ def generate_count_vectorizer():
     # anwwer files:
     files = ['./stack_exchange/' + x for x in os.listdir('./stack_exchange/') if 'answers' in x]
     answers = build_document_list(files)
-    X = cv.fit_transform([d.get_content() for d in answers])
-    print(cv.get_feature_names())
-    return X.toarray(), cv, answers
+    X = cv.fit_transform([d.get_content() for d in answers]).toarray()
+    word_ratio = [sum(x)/len(X) for x in zip(*X)]
+    return X, cv, answers, word_ratio
 
 # cv, X, answers = generate_count_vectorizer()
 # pickle.dump(cv, open('cv.p', 'wb'))
@@ -97,3 +97,4 @@ def generate_count_vectorizer():
 # pickle.dump(answers, open('answers.p', 'wb'))
 
 # to load them, run pickle.load(). E.g., cv = pickle.load(open('cv.p', 'rb'))
+# generate_count_vectorizer()
