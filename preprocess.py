@@ -16,8 +16,9 @@ from random import random
 from time import time
 from sys import exit
 from scipy import stats
-from sklearn.feature_extraction.text import CountVectorizer
-
+from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
+from sklearn.decomposition import NMF, LatentDirichletAllocation
+from sklearn.datasets import fetch_20newsgroups
 
 
 tokenizer = nltk.tokenize.treebank.TreebankWordTokenizer()
@@ -59,10 +60,17 @@ def our_tokenizer(sentence):
 
 
 class Document():
-    def __init__(self, idx, doc_type, content, peer_idx = None):
+    def __init__(self, line):
+        components = line.split(',')
+        if len(components) == 3:
+            idx, _, content = components
+            self.peer_idx = None
+        elif len(components) == 4:
+            idx, content, _, peer_idx = components
+            self.peer_idx = int(peer_idx)
         self.idx = int(idx)
         self.content = content
-        self.peer_idx = int(peer_idx) if peer_idx else None
+        
     def __str__(self):
         return 'idx: %d; peer_idx: %s\n%s' % (self.idx, str(self.peer_idx), self.content)
     def get_content(self):
@@ -75,7 +83,7 @@ def build_document_list(files):
         with open(filename, encoding='utf-8') as f:
             f.readline()
             for line in f:
-                docs.append(Document(*line.split(',')))
+                docs.append(Document(line))
     return docs
 
 def cosine_similarity(v1, v2):
@@ -87,22 +95,49 @@ def cosine_similarity(v1, v2):
         return 0
     return dot_product/norm_v1/norm_v2
 
+
 def generate_count_vectorizer():
     stopwords =  pickle.load(open('stopwords.p', 'rb'))
     cv = CountVectorizer(tokenizer = our_tokenizer, stop_words = stopwords)
     
-    # anwwer files:
-    files = ['./stack_exchange/' + x for x in os.listdir('./stack_exchange/') if 'answers' in x]
-    answers = build_document_list(files)
-    X = cv.fit_transform([d.get_content() for d in answers]).toarray()
-    word_ratio = [sum(x)/len(X) for x in zip(*X)]
-    return X, cv, answers, word_ratio
+    # answer files:
+    answer_files = ['./stack_exchange/' + x for x in os.listdir('./stack_exchange/') if 'answers' in x]
+    # question files
+    question_files = ['./stack_exchange/' + x for x in os.listdir('./stack_exchange/') if 'questions' in x]
+    answers = build_document_list(answer_files)
+    questions = build_document_list(question_files)
+    # count vector for answers
+    answer_matrix = cv.fit_transform([d.get_content() for d in answers])
+    num_answers, num_features = answer_matrix.shape
+    answer_mapping = {answer.idx : i for i, answer in enumerate(answers)}
 
-# cv, X, answers = generate_count_vectorizer()
+    word_ratio = [feature.sum()/num_answers for feature in answer_matrix.transpose()]
+
+    return answer_matrix, cv, answers, questions, word_ratio, answer_mapping
+
+
+
+
+def init_lda(num_topics, max_iterations):
+    answer_matrix, cv, answers, questions, word_ratio, answer_mapping = generate_count_vectorizer()
+
+    lda = LatentDirichletAllocation(n_components=num_topics, max_iter=max_iterations,
+                                learning_method='online',
+                                learning_offset=50.,
+                                random_state=0)
+    lda.fit(answer_matrix)
+    
+    return lda
+
+
+init_lda(51, 300)
+
 # pickle.dump(cv, open('cv.p', 'wb'))
 # pickle.dump(X, open('X.p', 'wb'))
 # pickle.dump(answers, open('answers.p', 'wb'))
 
 # to load them, run pickle.load(). E.g., cv = pickle.load(open('cv.p', 'rb'))
 # generate_count_vectorizer()
+
+
 
