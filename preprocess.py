@@ -84,7 +84,7 @@ def cosine_similarity(v1, v2):
     norm_v1 = sum(x**2 for x in v1)**0.5
     norm_v2 = sum(x**2 for x in v2)**0.5
     if norm_v1 == 0 or norm_v2 == 0:
-        return 1
+        return 0
     return dot_product/norm_v1/norm_v2
 
 def generate_count_vectorizer():
