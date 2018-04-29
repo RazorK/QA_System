@@ -72,13 +72,20 @@ class Document():
 def build_document_list(files):
     docs = []
     for filename in files:
-        with open(filename) as f:
+        with open(filename, encoding='utf-8') as f:
             f.readline()
             for line in f:
                 docs.append(Document(*line.split(',')))
     return docs
 
-
+def cosine_similarity(v1, v2):
+    assert len(v1) == len(v2)
+    dot_product = sum([x * y for x, y in zip(v1, v2)])
+    norm_v1 = sum(x**2 for x in v1)**0.5
+    norm_v2 = sum(x**2 for x in v2)**0.5
+    if norm_v1 == 0 or norm_v2 == 0:
+        return 1
+    return dot_product/norm_v1/norm_v2
 
 def generate_count_vectorizer():
     stopwords =  pickle.load(open('stopwords.p', 'rb'))
@@ -98,3 +105,4 @@ def generate_count_vectorizer():
 
 # to load them, run pickle.load(). E.g., cv = pickle.load(open('cv.p', 'rb'))
 # generate_count_vectorizer()
+
