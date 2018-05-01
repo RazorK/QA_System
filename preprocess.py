@@ -124,29 +124,61 @@ def count_nonzero_features(sparse_matrix):
         print('length > %d: %d' % (i, length_of(i)))
 
 
+def generate_cos_sim_rank_list(questions, answers, answer_mapping, converter):
+    '''
+    parameters:
+        questions       -   list of list
+        answers         -   list of list
+        answer_mapping  -   dict of int : int
+        converter       -   a function to convert question string into a vector
+    return:
+        list of ranks
+    '''
+    results = []
+    for q in questions:
+        question = converter(q)
+        l = [cosine_similarity(question, a) for a in answers]
+        ranks = sorted(list(range(len(l))), key = lambda i : l[i], reverse = True)
+        target = answer_mapping[q.peer_idx]
+        results.append(ranks.index(target))
+    return results
 
 
 
+
+def generate_rank_range(ranks, length, scale = 5):
+    ranks = sorted(ranks)
+    c = 1
+    total = 0
+    result = [[i, 1] for i in range(0, length + 1, scale)]
+    result[0] = [0, 0]
+    for x in ranks:
+        if x < c * scale:
+            total += 1
+        else:
+#             print('prepare', (c*scale, total/length), ' after hitting', x)
+            result[c] = [c*scale, total/length]
+            c += 1
+    return result
+    
+
+        
 
 
 def init_lda(num_topics, max_iterations):
     answer_matrix, cv, answers, questions, word_ratio, answer_mapping = generate_count_vectorizer()
 
-#     lda = LatentDirichletAllocation(n_components=num_topics, max_iter=max_iterations,
-#                                 learning_method='online',
-#                                 learning_offset=50.,
-#                                 random_state=0)
+#     lda = LatentDirichletAllocation(n_components=num_topics, max_iter=max_iterations)
 #     lda.fit(answer_matrix)
 # 
-#     pickle.dump(lda, open('lda.p','wb'))
+#     pickle.dump(lda, open('simple_lda.p','wb'))
 # 
 #     count_nonzero_features(answer_matrix)
+# 
 
-
-    lda = pickle.load(open('lda.p', 'rb'))
+    lda = pickle.load(open('simple_lda.p', 'rb'))
     print('loading done')
 
-    answerDistributions = lda.transform(answer_matrix).tolist()
     
     
 #     def get_best_similarity(question, answer_matrix, lda, word_ratio, lam, miu):
@@ -194,21 +226,36 @@ def init_lda(num_topics, max_iterations):
         res = list(range(len(simiList)))
         return sorted(res, key = lambda i : simiList[i], reverse= True)
 
-    X = answer_matrix.toarray()
+
     print('start!!')
-    
-    
-    for q in questions:
-        start = time()
-        question = cv.transform([q.content])
-        # print('question shape: ', question.shape, question.count_nonzero())
-        print(question[0,:].count_nonzero(), ' tokens;', end=' ')
-        question = question[0].toarray()[0]
-        l = getQLPSortedIndexList(question, X, answerDistributions, lda, word_ratio, 0.5, 0.5)
-        target = answer_mapping[q.peer_idx]
-        print('rank: ', l.index(target), '; cost', time() - start, 'seconds;', )
 
 
+    answerDistributions = lda.transform(answer_matrix).tolist()
+    converter = lambda q : lda.transform(cv.transform([q.content])).tolist()[0]
+    return generate_cos_sim_rank_list(questions, answerDistributions, answer_mapping, converter)
+
+
+
+
+#     X = answer_matrix.toarray()
+#     converter = lambda q: cv.transform([q.content]).toarray()[0]
+#     return generate_cos_sim_rank_list(questions, X, answer_mapping, converter)
+
+#     for q in questions:
+#         start = time()
+#         question = cv.transform([q.content])
+#         # print('question shape: ', question.shape, question.count_nonzero())
+#         print(question[0,:].count_nonzero(), ' tokens;', end=' ')
+#         question = question[0].toarray()[0]
+#         l = getQLPSortedIndexList(question, X, answerDistributions, lda, word_ratio, 0.5, 0.5)
+#         target = answer_mapping[q.peer_idx]
+#         print('rank: ', l.index(target), '; cost', time() - start, 'seconds;', )
+# 
+
+
+# 
+
+    
 
 
 #     start = time()
@@ -218,11 +265,29 @@ def init_lda(num_topics, max_iterations):
 #     print('cost ', time() - start, ' seconds')
 # 
 
-init_lda(450, 900)
 
 
+results = pickle.load(open('tfidf_res.p', 'rb'))
+# results = init_lda(51, 300)
+print(results)
+
+
+def plot_range(results):
+    '''
+    results -   list
+    you may want to change the label to something you want
+    '''
+    rank_range = generate_rank_range(results, len(results), 10)
+    rank_range_X, rank_range_Y = list(zip(*rank_range))
+    plt.plot(rank_range_X, rank_range_Y, label=('curve'))
+    plt.legend()
+    plt.title("cumulative range")
+    plt.xlabel('ranges')
+    plt.ylabel('predictions')
+
+    plt.show()
         
-
+plot_range(results)
 
 # pickle.dump(cv, open('cv.p', 'wb'))
 # pickle.dump(X, open('X.p', 'wb'))
