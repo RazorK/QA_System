@@ -98,7 +98,7 @@ def cosine_similarity(v1, v2):
 
 def generate_count_vectorizer():
     stopwords =  pickle.load(open('stopwords.p', 'rb'))
-    cv = CountVectorizer(tokenizer = our_tokenizer, stop_words = stopwords)
+    cv = CountVectorizer(tokenizer = our_tokenizer, stop_words = stopwords, ngram_range=(1, 2))
     
     # answer files:
     answer_files = ['./stack_exchange/' + x for x in os.listdir('./stack_exchange/') if 'answers' in x]
@@ -116,21 +116,113 @@ def generate_count_vectorizer():
     return answer_matrix, cv, answers, questions, word_ratio, answer_mapping
 
 
+def count_nonzero_features(sparse_matrix):
+    lengths = [x.count_nonzero() for x in sparse_matrix]
+    def length_of(n):
+        return len([1 for x in lengths if x > n])
+    for i in range(10, 100, 10):
+        print('length > %d: %d' % (i, length_of(i)))
+
+
+
+
+
 
 
 def init_lda(num_topics, max_iterations):
     answer_matrix, cv, answers, questions, word_ratio, answer_mapping = generate_count_vectorizer()
 
-    lda = LatentDirichletAllocation(n_components=num_topics, max_iter=max_iterations,
-                                learning_method='online',
-                                learning_offset=50.,
-                                random_state=0)
-    lda.fit(answer_matrix)
+#     lda = LatentDirichletAllocation(n_components=num_topics, max_iter=max_iterations,
+#                                 learning_method='online',
+#                                 learning_offset=50.,
+#                                 random_state=0)
+#     lda.fit(answer_matrix)
+# 
+#     pickle.dump(lda, open('lda.p','wb'))
+# 
+#     count_nonzero_features(answer_matrix)
+
+
+    lda = pickle.load(open('lda.p', 'rb'))
+    print('loading done')
+
+    answerDistributions = lda.transform(answer_matrix).tolist()
     
-    return lda
+    
+#     def get_best_similarity(question, answer_matrix, lda, word_ratio, lam, miu):
+#         '''
+#         question    -   sparse matrix representing the question
+#         '''
+#         best = (0, 0)
+#         simiList = []
+#         for answer in answer_matrix:
+#             prob = 1
+#             answerDis = lda.transform(answer)
+#             for i in np.nditer(question.indices):
+#                 pseudo = (answer[0, i] + miu * word_ratio[i]) / (miu + answer.sum())
+#                 plda = 0
+#                 for topic_idx, topic in enumerate(lda.components_):
+#                     plda += answerDis[0, topic_idx] * topic.item(i) * question[0, i]
+#                 prob *= lam * pseudo + (1-lam) * plda
+#             simiList.append(prob)
+#         print('after ', time() - start, ' seconds, start to sort')
+#         res = list(range(len(simiList)))
+#         return sorted(res, key = lambda i : simiList[i], reverse= True)
+    
+
+    def getQLPSortedIndexList(qes, tf, answerDis, lda, cwlist, lam, u):
+    # should return list of answer index
+        simiList = []
+        for j, row in enumerate(tf):
+            prob = 1
+
+            for i in range(len(qes)):
+                if(qes[i] == 0): continue
+                pseudo = (row[i] + u * cwlist[i]) / (u + sum(row))
+            
+                # calculate plda
+                plda = 0
+            
+                # traverse topic
+                for topic_idx, topic in enumerate(lda.components_):
+                    plda += answerDistributions[j][topic_idx] * topic.item(i)*qes[i]
+                
+                prob *= lam*pseudo + (1-lam) * plda
+        
+            simiList.append(prob)
+        # sort the similarity list, and return the index list.
+        res = list(range(len(simiList)))
+        return sorted(res, key = lambda i : simiList[i], reverse= True)
+
+    X = answer_matrix.toarray()
+    print('start!!')
+    
+    
+    for q in questions:
+        start = time()
+        question = cv.transform([q.content])
+        # print('question shape: ', question.shape, question.count_nonzero())
+        print(question[0,:].count_nonzero(), ' tokens;', end=' ')
+        question = question[0].toarray()[0]
+        l = getQLPSortedIndexList(question, X, answerDistributions, lda, word_ratio, 0.5, 0.5)
+        target = answer_mapping[q.peer_idx]
+        print('rank: ', l.index(target), '; cost', time() - start, 'seconds;', )
 
 
-init_lda(51, 300)
+
+
+#     start = time()
+#     
+# 
+#     print(get_best_similarity(question, answer_matrix, lda, word_ratio, 0, 1))
+#     print('cost ', time() - start, ' seconds')
+# 
+
+init_lda(450, 900)
+
+
+        
+
 
 # pickle.dump(cv, open('cv.p', 'wb'))
 # pickle.dump(X, open('X.p', 'wb'))
